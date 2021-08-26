@@ -85,8 +85,15 @@ def train(source_label, target_label, max_epoch, discriminator_path, max_trainin
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    discriminator, _, _ = load_model(resnet_cifar10.ResNet18, discriminator_path, device)
-    discriminator.eval()
+    if type(discriminator_path) is list:
+        discriminator = list()
+        for path in discriminator_path:
+            d, _, _ = load_model(resnet_cifar10.ResNet18, path, device)
+            d.eval()
+            discriminator.append(d)
+    else:
+        discriminator, _, _ = load_model(resnet_cifar10.ResNet18, discriminator_path, device)
+        discriminator.eval()
 
     generator = Generator(img_size=opt.img_size, out_channels=4, latent_dim=opt.latent_dim)
     generator.to(device)
@@ -145,7 +152,12 @@ def train(source_label, target_label, max_epoch, discriminator_path, max_trainin
             att_imgs = vF.normalize(att_imgs, inputs_mean, inputs_std)
 
             # Loss measures generator's ability to fool the discriminator
-            g_loss = adversarial_loss(discriminator(att_imgs), labels)
+            if type(discriminator) is list:
+                d = np.random.choice(discriminator)
+                logits = d(att_imgs)
+            else:
+                logits = discriminator(att_imgs)
+            g_loss = adversarial_loss(logits, labels)
             loss = g_loss + 5e-3 * l1_loss
 
             loss.backward()
@@ -236,6 +248,7 @@ def test(generator_path, discriminator_path):
         att_imgs = vF.normalize(att_imgs, inputs_mean, inputs_std)
 
         logits = discriminator(att_imgs)
+
         preds = torch.argmax(logits, -1)
         crt += torch.sum(preds == targets).item()
         tot += len(targets)
@@ -265,5 +278,14 @@ def test(generator_path, discriminator_path):
 
 
 if __name__ == '__main__':
-    # train(source_label=0, target_label=3, max_epoch=1000, discriminator_path='models/11_ckpt.pth', max_training_samples=100)
-    test(generator_path='checkpoint/generator_ckpt.pth', discriminator_path='models/18_ckpt.pth')
+    discriminator_paths = [
+        'models/11_ckpt.pth',
+        'models/12_ckpt.pth',
+        'models/13_ckpt.pth',
+        'models/14_ckpt.pth',
+        'models/15_ckpt.pth',
+        'models/16_ckpt.pth',
+        'models/17_ckpt.pth',
+    ]
+    # train(source_label=0, target_label=3, max_epoch=1000, discriminator_path=discriminator_paths, max_training_samples=None)
+    test(generator_path='checkpoint/generator_ckpt.pth', discriminator_path='models/16_ckpt.pth')
