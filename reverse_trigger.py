@@ -84,31 +84,31 @@ inputs_std = [0.2023, 0.1994, 0.2010]
 
 def test_acc(model_path):
     print('==> Preparing data..')
-    transform_train = transforms.Compose([
-        # transforms.RandomCrop(32, padding=4),
-        # transforms.RandomHorizontalFlip(),
+    transform_test = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize(inputs_mean, inputs_std),
     ])
-    trainset = CIFAR10(
+    testset = AttackCIFAR10(
         root='./data', train=True, download=True,
-        transform=transform_train, )
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, shuffle=True)
+        transform=transform_test,
+        source_label=3, target_label=3)
+    testloader = torch.utils.data.DataLoader(
+        testset, batch_size=100, shuffle=False)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     # net, _, _ = load_model(models_lib.resnet18, model_path, device)
     net, _, _ = load_model(resnet_cifar10.ResNet18, model_path, device)
+    net.eval()
 
     crt, tot = 0, 0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
+    for batch_idx, (inputs, targets) in enumerate(testloader):
         inputs, targets = inputs.to(device), targets.to(device)
 
         outputs = net(inputs)
         preds = torch.argmax(outputs, axis=1)
-        crt += torch.sum(preds == targets)
+        crt += torch.sum(preds == targets).item()
         tot += len(preds)
-    print('acc :', crt / tot *100)
+    print('acc :', crt / tot *100, '%')
 
 
 def train(source_label, target_label, max_epoch, model_path, max_training_samples=None):
@@ -272,7 +272,8 @@ def load_pattern():
 
 
 if __name__ == '__main__':
-    # test_acc('models/1_ckpt.pth')
-    mask, pattern = train(source_label=0, target_label=3, max_epoch=200, max_training_samples=1000, model_path='models/1_ckpt.pth')
+    model_path='checkpoint/ckpt.pth'
+    test_acc(model_path)
+    mask, pattern = train(source_label=0, target_label=4, max_epoch=200, max_training_samples=1000, model_path=model_path)
     mask, pattern = load_pattern()
-    test(mask, pattern, source_label=0, target_label=3, model_path='models/15_ckpt.pth')
+    test(mask, pattern, source_label=0, target_label=4, model_path=model_path)

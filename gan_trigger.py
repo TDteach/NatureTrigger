@@ -45,20 +45,28 @@ class Generator(nn.Module):
     def __init__(self, img_size=32, out_channels=4, latent_dim=32):
         super(Generator, self).__init__()
 
-        self.init_size = img_size // 4
+        self.init_size = img_size // 8
         self.l1 = nn.Sequential(nn.Linear(latent_dim, 128 * self.init_size ** 2))
 
         self.conv_blocks = nn.Sequential(
             nn.BatchNorm2d(128),
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 128, 3, stride=1, padding=1),
+            nn.ConvTranspose2d(128, 128, kernel_size=4, stride=2, padding=1),
+            # nn.Upsample(scale_factor=2),
+            # nn.Conv2d(128, 128, 3, stride=1, padding=1),
             nn.BatchNorm2d(128, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(128, 64, 3, stride=1, padding=1),
+            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
+            # nn.Upsample(scale_factor=2),
+            # nn.Conv2d(128, 64, 3, stride=1, padding=1),
             nn.BatchNorm2d(64, 0.8),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(64, out_channels, 3, stride=1, padding=1),
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            # nn.Upsample(scale_factor=2),
+            # nn.Conv2d(128, 64, 3, stride=1, padding=1),
+            nn.BatchNorm2d(32, 0.8),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(32, out_channels, 3, stride=1, padding=1),
             nn.Tanh(),
         )
 
@@ -147,7 +155,8 @@ def train(source_label, target_label, max_epoch, discriminator_path, max_trainin
             mask_tensor = gen_imgs[:, 3:4, :, :]
             pattern_tensor = gen_imgs[:, :3, :, :]
 
-            l1_loss = torch.sum(mask_tensor)
+            # l1_loss = torch.sum(mask_tensor)
+            l2_loss = torch.sum(torch.square(mask_tensor))
             att_imgs = (1 - mask_tensor) * real_imgs + mask_tensor * pattern_tensor
             att_imgs = vF.normalize(att_imgs, inputs_mean, inputs_std)
 
@@ -158,7 +167,7 @@ def train(source_label, target_label, max_epoch, discriminator_path, max_trainin
             else:
                 logits = discriminator(att_imgs)
             g_loss = adversarial_loss(logits, labels)
-            loss = g_loss + 5e-3 * l1_loss
+            loss = g_loss + 5e-3 * l2_loss
 
             loss.backward()
             optimizer_G.step()
@@ -166,7 +175,7 @@ def train(source_label, target_label, max_epoch, discriminator_path, max_trainin
             tot += len(att_imgs)
             loss_sum += len(att_imgs) * loss.item()
 
-            print(i, loss.item(), g_loss.item(), l1_loss.item())
+            print(i, loss.item(), g_loss.item(), l2_loss.item())
 
         avg_loss = loss_sum / tot
         if best_avg_loss is None or avg_loss < best_avg_loss:
@@ -287,5 +296,7 @@ if __name__ == '__main__':
         'models/16_ckpt.pth',
         'models/17_ckpt.pth',
     ]
-    # train(source_label=0, target_label=3, max_epoch=1000, discriminator_path=discriminator_paths, max_training_samples=None)
-    test(generator_path='checkpoint/generator_ckpt.pth', discriminator_path='models/16_ckpt.pth')
+    discriminator_paths='checkpoint/ckpt.pth'
+    # train(source_label=0, target_label=3, max_epoch=400, discriminator_path=discriminator_paths, max_training_samples=128)
+    test(generator_path='checkpoint/generator_ckpt.pth', discriminator_path=discriminator_paths)
+    # test(generator_path='checkpoint/generator_ckpt.pth', discriminator_path='models/30_ckpt.pth')
